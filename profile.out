@@ -1,0 +1,318 @@
+Total: 181 samples
+     141  77.9%  77.9%      181 100.0% threader
+      27  14.9%  92.8%       27  14.9% __strcmp_sse42
+       8   4.4%  97.2%       32  17.7% SortedList_lookup
+       4   2.2%  99.4%        4   2.2% _init
+       1   0.6% 100.0%        8   4.4% SortedList_insert
+       0   0.0% 100.0%      181 100.0% __clone
+       0   0.0% 100.0%      181 100.0% start_thread
+ROUTINE ====================== threader in /u/eng/ugrad/bauersfe/CS111/lab2b/lab2_list.c
+   141    181 Total samples (flat / cumulative)
+     .      .   32: int capacity;
+     .      .   33: int list_num = 1;
+     .      .   34: long long *timedlock;
+     .      .   35: 
+     .      .   36: //the function run by each thread
+---
+     .      .   37: void* threader(void* arg){
+     .      .   38:   //each thread is passed an integer id
+     .      .   39:   int* s = (int*) arg;
+     .      .   40:   int start = *s;
+     .      .   41:   int id = start;
+     .      .   42:   
+     .      .   43:   //begin processing the element array at a location determined by thread id 
+     .      .   44:   start = start * iterations;
+     .      .   45:   int end = start + iterations;
+     .      .   46:   int i = 0;
+     .      .   47:   struct timespec lockstart, lockend;
+     .      .   48: 
+     .      .   49:   //insert all elements into a single list
+     .      .   50:   for (i = start; i < end; i++){
+     .      .   51:     int bucket = abs((int) *array[i].key) % list_num; //hash key to determine which list to work with
+     .      .   52:     if (sync_type == 'm'){
+     .      .   53:       if(clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){ //time to get each mutex lock per thread
+     .      .   54: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   55: 	exit(2);
+     .      .   56:       }
+     .      .   57:       pthread_mutex_lock(&lock[bucket]);
+     .      .   58:       if(clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .   59: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   60: 	exit(2);
+     .      .   61:       }
+     .      .   62:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec; //add up total time per thread
+     .      .   63:     }
+     .      .   64:     else if (sync_type == 's'){
+     .      .   65:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){ //time to get each spin lock per thread
+     .      .   66: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   67: 	exit(2);
+     .      .   68:       }
+    92     92   69:       while(__sync_lock_test_and_set(&flag[bucket], 1));
+     .      .   70:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .   71: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   72: 	exit(2);
+     .      .   73:       }
+     .      .   74:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .   75:     }
+     .      .   76:     
+     .      8   77:     SortedList_insert(&head[bucket], &array[i]);
+     .      .   78: 
+     .      .   79:     if (sync_type == 'm'){
+     .      .   80:       pthread_mutex_unlock(&lock[bucket]);
+     .      .   81:     }
+     .      .   82:     else if (sync_type == 's'){
+     .      .   83:       __sync_lock_release(&flag[bucket]);
+     .      .   84:     }
+     .      .   85:   }
+     .      .   86: 
+     .      .   87:   //this section finds the length of the list
+     .      .   88:   int total_length = 0;
+     .      .   89:   int list_length[list_num];
+     .      .   90:   for (i = 0; i < list_num; i++){
+     .      .   91:     if (sync_type == 'm'){
+     .      .   92:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){
+     .      .   93: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   94: 	exit(2);
+     .      .   95:       }
+     .      .   96:       pthread_mutex_lock(&lock[i]);
+     .      .   97:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .   98: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   99: 	exit(2);
+     .      .  100:       }
+     .      .  101:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .  102:     }
+     .      .  103:     else if (sync_type == 's'){
+     .      .  104:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){
+     .      .  105: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  106: 	exit(2);
+     .      .  107:       }
+     .      .  108:       while(__sync_lock_test_and_set(&flag[i], 1));
+     .      .  109:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .  110: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  111: 	exit(2);
+     .      .  112:       }
+     .      .  113:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .  114:     }
+     .      .  115:   
+     .      .  116:     list_length[i] = SortedList_length(&head[i]);
+     .      .  117: 
+     .      .  118:     if (sync_type == 'm'){
+     .      .  119:       pthread_mutex_unlock(&lock[i]);
+     .      .  120:     }
+     .      .  121:     else if (sync_type == 's'){
+     .      .  122:       __sync_lock_release(&flag[i]);
+     .      .  123:     }
+     .      .  124: 
+     .      .  125:     //log an error if the list is malformed
+     .      .  126:     if (list_length[i] == -1){
+     .      .  127:       fprintf(stderr, "Error finding length of list.");
+     .      .  128:       exit(2);
+     .      .  129:     }
+     .      .  130:     total_length+=list_length[i];
+     .      .  131:   }
+     .      .  132:   
+     .      .  133:   //this section looks up each key and deletes it
+     .      .  134:   SortedListElement_t *ptr = NULL;
+     .      .  135:   for (i = start; i < end; i++){
+     .      .  136:     int bucket = abs((int) *array[i].key) % list_num;
+     .      .  137:     if (sync_type == 'm'){
+     .      .  138:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){
+     .      .  139: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  140: 	exit(2);
+     .      .  141:       }
+     .      .  142:       pthread_mutex_lock(&lock[bucket]);
+     .      .  143:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .  144: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  145: 	exit(2);
+     .      .  146:       }
+     .      .  147:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .  148:     }
+     .      .  149:     else if (sync_type == 's'){
+     .      .  150:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){
+     .      .  151: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  152: 	exit(2);
+     .      .  153:       }
+    49     49  154:       while(__sync_lock_test_and_set(&flag[bucket], 1));
+     .      .  155:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .  156: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  157: 	exit(2);
+     .      .  158:       }
+     .      .  159:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .  160:     }
+     .     32  161:     if((ptr = SortedList_lookup(&head[bucket], array[i].key)) == NULL){
+     .      .  162:       fprintf(stderr, "Error looking up item in the list.");
+     .      .  163:       exit(2);
+     .      .  164:     }
+     .      .  165:     if(SortedList_delete(ptr) == 1){
+     .      .  166:       fprintf(stderr, "Error deleting item in the list.");
+     .      .  167:       exit(2);
+     .      .  168:     }
+     .      .  169:     if (sync_type == 'm'){
+     .      .  170:       pthread_mutex_unlock(&lock[bucket]);
+     .      .  171:     }
+     .      .  172:     else if (sync_type == 's'){
+     .      .  173:       __sync_lock_release(&flag[bucket]);
+     .      .  174:     }
+     .      .  175:   }
+     .      .  176:   return NULL;
+     .      .  177: }
+---
+     .      .  178: 
+     .      .  179: int main(int argc, char** argv){
+     .      .  180:   int thread_num = 1;
+     .      .  181:   char* yops = "none";
+     .      .  182:   struct option opts[] = {
+ROUTINE ====================== threader in /u/eng/ugrad/bauersfe/CS111/lab2b/lab2_list.c
+   141    181 Total samples (flat / cumulative)
+     .      .   32: int capacity;
+     .      .   33: int list_num = 1;
+     .      .   34: long long *timedlock;
+     .      .   35: 
+     .      .   36: //the function run by each thread
+---
+     .      .   37: void* threader(void* arg){
+     .      .   38:   //each thread is passed an integer id
+     .      .   39:   int* s = (int*) arg;
+     .      .   40:   int start = *s;
+     .      .   41:   int id = start;
+     .      .   42:   
+     .      .   43:   //begin processing the element array at a location determined by thread id 
+     .      .   44:   start = start * iterations;
+     .      .   45:   int end = start + iterations;
+     .      .   46:   int i = 0;
+     .      .   47:   struct timespec lockstart, lockend;
+     .      .   48: 
+     .      .   49:   //insert all elements into a single list
+     .      .   50:   for (i = start; i < end; i++){
+     .      .   51:     int bucket = abs((int) *array[i].key) % list_num; //hash key to determine which list to work with
+     .      .   52:     if (sync_type == 'm'){
+     .      .   53:       if(clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){ //time to get each mutex lock per thread
+     .      .   54: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   55: 	exit(2);
+     .      .   56:       }
+     .      .   57:       pthread_mutex_lock(&lock[bucket]);
+     .      .   58:       if(clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .   59: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   60: 	exit(2);
+     .      .   61:       }
+     .      .   62:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec; //add up total time per thread
+     .      .   63:     }
+     .      .   64:     else if (sync_type == 's'){
+     .      .   65:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){ //time to get each spin lock per thread
+     .      .   66: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   67: 	exit(2);
+     .      .   68:       }
+    92     92   69:       while(__sync_lock_test_and_set(&flag[bucket], 1));
+     .      .   70:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .   71: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   72: 	exit(2);
+     .      .   73:       }
+     .      .   74:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .   75:     }
+     .      .   76:     
+     .      8   77:     SortedList_insert(&head[bucket], &array[i]);
+     .      .   78: 
+     .      .   79:     if (sync_type == 'm'){
+     .      .   80:       pthread_mutex_unlock(&lock[bucket]);
+     .      .   81:     }
+     .      .   82:     else if (sync_type == 's'){
+     .      .   83:       __sync_lock_release(&flag[bucket]);
+     .      .   84:     }
+     .      .   85:   }
+     .      .   86: 
+     .      .   87:   //this section finds the length of the list
+     .      .   88:   int total_length = 0;
+     .      .   89:   int list_length[list_num];
+     .      .   90:   for (i = 0; i < list_num; i++){
+     .      .   91:     if (sync_type == 'm'){
+     .      .   92:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){
+     .      .   93: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   94: 	exit(2);
+     .      .   95:       }
+     .      .   96:       pthread_mutex_lock(&lock[i]);
+     .      .   97:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .   98: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .   99: 	exit(2);
+     .      .  100:       }
+     .      .  101:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .  102:     }
+     .      .  103:     else if (sync_type == 's'){
+     .      .  104:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){
+     .      .  105: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  106: 	exit(2);
+     .      .  107:       }
+     .      .  108:       while(__sync_lock_test_and_set(&flag[i], 1));
+     .      .  109:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .  110: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  111: 	exit(2);
+     .      .  112:       }
+     .      .  113:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .  114:     }
+     .      .  115:   
+     .      .  116:     list_length[i] = SortedList_length(&head[i]);
+     .      .  117: 
+     .      .  118:     if (sync_type == 'm'){
+     .      .  119:       pthread_mutex_unlock(&lock[i]);
+     .      .  120:     }
+     .      .  121:     else if (sync_type == 's'){
+     .      .  122:       __sync_lock_release(&flag[i]);
+     .      .  123:     }
+     .      .  124: 
+     .      .  125:     //log an error if the list is malformed
+     .      .  126:     if (list_length[i] == -1){
+     .      .  127:       fprintf(stderr, "Error finding length of list.");
+     .      .  128:       exit(2);
+     .      .  129:     }
+     .      .  130:     total_length+=list_length[i];
+     .      .  131:   }
+     .      .  132:   
+     .      .  133:   //this section looks up each key and deletes it
+     .      .  134:   SortedListElement_t *ptr = NULL;
+     .      .  135:   for (i = start; i < end; i++){
+     .      .  136:     int bucket = abs((int) *array[i].key) % list_num;
+     .      .  137:     if (sync_type == 'm'){
+     .      .  138:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){
+     .      .  139: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  140: 	exit(2);
+     .      .  141:       }
+     .      .  142:       pthread_mutex_lock(&lock[bucket]);
+     .      .  143:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .  144: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  145: 	exit(2);
+     .      .  146:       }
+     .      .  147:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .  148:     }
+     .      .  149:     else if (sync_type == 's'){
+     .      .  150:       if (clock_gettime(CLOCK_MONOTONIC, &lockstart) == -1){
+     .      .  151: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  152: 	exit(2);
+     .      .  153:       }
+    49     49  154:       while(__sync_lock_test_and_set(&flag[bucket], 1));
+     .      .  155:       if (clock_gettime(CLOCK_MONOTONIC, &lockend) == -1){
+     .      .  156: 	fprintf(stderr, "Error: clock_gettime failed with message: %s", strerror(errno));
+     .      .  157: 	exit(2);
+     .      .  158:       }
+     .      .  159:       timedlock[id] += 1000000000 * (lockend.tv_sec - lockstart.tv_sec) + lockend.tv_nsec - lockstart.tv_nsec;
+     .      .  160:     }
+     .     32  161:     if((ptr = SortedList_lookup(&head[bucket], array[i].key)) == NULL){
+     .      .  162:       fprintf(stderr, "Error looking up item in the list.");
+     .      .  163:       exit(2);
+     .      .  164:     }
+     .      .  165:     if(SortedList_delete(ptr) == 1){
+     .      .  166:       fprintf(stderr, "Error deleting item in the list.");
+     .      .  167:       exit(2);
+     .      .  168:     }
+     .      .  169:     if (sync_type == 'm'){
+     .      .  170:       pthread_mutex_unlock(&lock[bucket]);
+     .      .  171:     }
+     .      .  172:     else if (sync_type == 's'){
+     .      .  173:       __sync_lock_release(&flag[bucket]);
+     .      .  174:     }
+     .      .  175:   }
+     .      .  176:   return NULL;
+     .      .  177: }
+---
+     .      .  178: 
+     .      .  179: int main(int argc, char** argv){
+     .      .  180:   int thread_num = 1;
+     .      .  181:   char* yops = "none";
+     .      .  182:   struct option opts[] = {
