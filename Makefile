@@ -5,10 +5,10 @@ build:
 	gcc -g -Wall -Wextra -o lab2_list lab2_list.c SortedList.c -lpthread -lprofiler
 
 dist: build tests graphs profile
-	tar -czvf lab2b-604813474.tar.gz README Makefile SortedList.c lab2_list.c SortedList.h *.png *.csv *.gp profile.out
+	tar -czvf lab2b.tar.gz README Makefile SortedList.c lab2_list.c SortedList.h *.png *.csv *.gp profile.out
 
 clean:
-	rm -rf lab2_list lab2b-604813474.tar.gz
+	rm -rf lab2_list lab2b.tar.gz
 
 graphs:
 	chmod +x lab2b_list.gp
